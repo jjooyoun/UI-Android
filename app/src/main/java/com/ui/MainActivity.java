@@ -1,8 +1,10 @@
 package com.ui;
 
+import android.content.Intent;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.ui.com.ui_android.R;
+
+import com.ui.gridview.GridViewActivity;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -10,5 +12,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        startGridViewActivity();
+    }
+
+    private void startGridViewActivity() {
+        Intent intent = new Intent(this, GridViewActivity.class);
+        startActivity(intent);
     }
 }
