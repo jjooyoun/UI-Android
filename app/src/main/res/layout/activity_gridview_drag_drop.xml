@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent" >
 
-    <GridView
+    <com.ui.gridview.CustomGridView
         android:id="@+id/custom_gridview"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -16,6 +16,6 @@
         android:numColumns="3"
         android:stretchMode="columnWidth"
         android:verticalSpacing="0dp" >
-    </GridView>
+    </com.ui.gridview.CustomGridView>
 
 </RelativeLayout>

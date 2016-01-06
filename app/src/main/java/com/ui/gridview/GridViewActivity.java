@@ -19,19 +19,20 @@ import android.widget.AdapterView.OnItemClickListener;
 import android.widget.AdapterView.OnItemLongClickListener;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.GridView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 
 import com.ui.R;
 
-public class GridViewActivity extends Activity implements OnItemClickListener, OnItemLongClickListener  {
+public class GridViewActivity extends Activity {
 
 	private static final int DATA_QUERY_TOKEN = 41;
 
 	private Context mContext;
 
-	private CustomGridView mCustomGridView;
+	private GridView mGridView;
 	private CustomGridViewAdapter mCustomGridViewAdapter;
 
 	private DataQueryHandler mDataQueryHandler;
@@ -63,48 +64,13 @@ public class GridViewActivity extends Activity implements OnItemClickListener, O
 		if (mDataQueryHandler == null) {
 			mDataQueryHandler = new DataQueryHandler(GridViewActivity.this);
 		}
-		startDataQuery();;
-	}
-
-	@Override
-	protected void onDestroy() {
-		super.onDestroy();
-	}
-
-	@Override
-	public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-	}
-
-	@Override
-	public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-		mCustomGridView.startEditMode(position);
-		return true;
+		startDataQuery();
 	}
 
 	private void init() {
-		mCustomGridView = (CustomGridView) findViewById(R.id.custom_gridview);
+		mGridView = (GridView) findViewById(R.id.custom_gridview);
 		mCustomGridViewAdapter = new CustomGridViewAdapter(GridViewActivity.this, null, true);
-		mCustomGridView.setAdapter(mCustomGridViewAdapter);
-		mCustomGridView.setOnItemClickListener(this);
-		mCustomGridView.setOnItemLongClickListener(this);
-
-		mCustomGridView.setOnDropListener(new CustomGridView.OnDropListener() {
-
-			@Override
-			public void onActionDrop() {
-				mCustomGridView.stopEditMode();
-			}
-		});
-		mCustomGridView.setOnDragListener(new CustomGridView.OnDragListener() {
-
-			@Override
-			public void onDragStarted(int position) {
-			}
-
-			@Override
-			public void onDragPositionsChanged(int oldPosition, int newPosition) {
-			}
-		});
+		mGridView.setAdapter(mCustomGridViewAdapter);
 	}
 
 	private void startDataQuery() {

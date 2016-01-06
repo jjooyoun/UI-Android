@@ -25,6 +25,8 @@ import android.widget.AbsListView;
 import android.widget.GridView;
 import android.widget.ListAdapter;
 
+import com.ui.R;
+
 public class CustomGridView extends GridView {
 
 	private static final int INVALID_ID = -1;
@@ -89,7 +91,7 @@ public class CustomGridView extends GridView {
 		setOnScrollListener(mScrollListener);
 		DisplayMetrics metrics = context.getResources().getDisplayMetrics();
 		mSmoothScrollAmountAtEdge = (int) (SMOOTH_SCROLL_AMOUNT_AT_EDGE * metrics.density + 0.5f);
-		// TODO
+
 //		mOverlapIfSwitchStraightLine = getResources().getDimensionPixelSize(R.dimen.kiwiple_story_scenario_overlap_if_switch_straight_line);
 	}
 
@@ -128,9 +130,7 @@ public class CustomGridView extends GridView {
 		int top = v.getTop();
 		int left = v.getLeft();
 
-		// TODO
-//		Bitmap b = getBitmapFromView(v);
-		Bitmap b = null;
+		Bitmap b = getBitmapFromView(v);
 
 		BitmapDrawable drawable = new BitmapDrawable(getResources(), b);
 
@@ -145,23 +145,21 @@ public class CustomGridView extends GridView {
 	/**
 	 * Returns a bitmap showing a screenshot of the view passed in.
 	 */
-	// TODO
-//	private Bitmap getBitmapFromView(View v) {
-//
-//		View view = v.findViewById(R.id.kiwiple_story_scenario_thumb);
-//		view.clearFocus();
-//		boolean flag = view.willNotCacheDrawing();
-//		view.setWillNotCacheDrawing(false);
-//		view.buildDrawingCache();
-//		Bitmap bitmap = view.getDrawingCache();
-//		Bitmap scaleBitmap = null;
-//		if(bitmap != null){
-//			scaleBitmap = Bitmap.createScaledBitmap(bitmap, v.getWidth(), v.getHeight(), false);
-//			view.destroyDrawingCache();
-//			view.setWillNotCacheDrawing(flag);
-//		}
-//		return scaleBitmap;
-//	}
+	private Bitmap getBitmapFromView(View v) {
+		View view = v.findViewById(R.id.thumbnail_view);
+		view.clearFocus();
+		boolean flag = view.willNotCacheDrawing();
+		view.setWillNotCacheDrawing(false);
+		view.buildDrawingCache();
+		Bitmap bitmap = view.getDrawingCache();
+		Bitmap scaleBitmap = null;
+		if(bitmap != null){
+			scaleBitmap = Bitmap.createScaledBitmap(bitmap, v.getWidth(), v.getHeight(), false);
+			view.destroyDrawingCache();
+			view.setWillNotCacheDrawing(flag);
+		}
+		return scaleBitmap;
+	}
 
 	private void updateNeighborViewsForId(long itemId) {
 		idList.clear();
@@ -221,13 +219,13 @@ public class CustomGridView extends GridView {
 
 	public interface OnDragListener {
 
-		public void onDragStarted(int position);
+		void onDragStarted(int position);
 
-		public void onDragPositionsChanged(int oldPosition, int newPosition);
+		void onDragPositionsChanged(int oldPosition, int newPosition);
 	}
 
 	public interface OnEditModeChangeListener {
-		public void onEditModeChanged(boolean inEditMode);
+		void onEditModeChanged(boolean inEditMode);
 	}
 
 	@Override
@@ -431,7 +429,7 @@ public class CustomGridView extends GridView {
 	public CustomGridViewAdapter getScenarioEditAdapter() {
 		CustomGridViewAdapter adapter = (CustomGridViewAdapter) getAdapter();
 		if (adapter != null) {
-			return (CustomGridViewAdapter) adapter;
+			return adapter;
 		}
 		return null;
 	}
@@ -466,9 +464,8 @@ public class CustomGridView extends GridView {
 						|| right(targetColumnRowPair, mobileColumnRowPair) && deltaXTotal > view.getLeft() + mOverlapIfSwitchStraightLine || left(
 						targetColumnRowPair, mobileColumnRowPair) && deltaXTotal < view.getRight() - mOverlapIfSwitchStraightLine)) {
 
-					// TODO
-//					float xDiff = Math.abs(ScenarioEditGridViewUtil.getViewX(view) - ScenarioEditGridViewUtil.getViewX(mobileView));
-//					float yDiff = Math.abs(ScenarioEditGridViewUtil.getViewY(view) - ScenarioEditGridViewUtil.getViewY(mobileView));
+//					float xDiff = Math.abs(getViewX(view) - getViewX(mobileView));
+//					float yDiff = Math.abs(getViewY(view) - getViewY(mobileView));
 //					if (xDiff >= vX && yDiff >= vY) {
 //						vX = xDiff;
 //						vY = yDiff;
@@ -513,6 +510,15 @@ public class CustomGridView extends GridView {
 			}
 		}
 	}
+
+//	public float getViewX(View view) {
+//		return Math.abs((view.getRight() - view.getLeft()) / 2);
+//	}
+//
+//	public float getViewY(View view) {
+//		return Math.abs((view.getBottom() - view.getTop()) / 2);
+//	}
+
 
 	private void animateReorder(final int oldPosition, final int newPosition) {
 		boolean isForward = newPosition > oldPosition;
