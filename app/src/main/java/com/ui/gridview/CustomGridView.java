@@ -16,7 +16,6 @@ import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewTreeObserver;
@@ -48,9 +47,6 @@ public class CustomGridView extends GridView {
 	private int mLastEventY = -1;
 	private int mLastEventX = -1;
 
-	// used to distinguish straight line and diagonal switching
-	private int mOverlapIfSwitchStraightLine;
-
 	private long mMobileItemId = INVALID_ID;
 
 	private boolean mCellIsMobile = false;
@@ -62,15 +58,72 @@ public class CustomGridView extends GridView {
 	private int mScrollState = OnScrollListener.SCROLL_STATE_IDLE;
 
 	private boolean mIsEditMode = false;
-	private boolean mHoverAnimation;
 	private boolean mReorderAnimation;
 	private boolean mIsEditModeEnabled = true;
 
 	private OnDropListener mDropListener;
-	private OnDragListener mDragListener;
-	private OnEditModeChangeListener mEditModeChangeListener;
 
-	private List<Long> idList = new ArrayList<Long>();
+	private List<Long> mIdList = new ArrayList<Long>();
+
+	private OnScrollListener mScrollListener = new OnScrollListener() {
+		private int mPreviousFirstVisibleItem = -1;
+		private int mPreviousVisibleItemCount = -1;
+		private int mCurrentFirstVisibleItem;
+		private int mCurrentVisibleItemCount;
+		private int mCurrentScrollState;
+
+		@Override
+		public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
+			mCurrentFirstVisibleItem = firstVisibleItem;
+			mCurrentVisibleItemCount = visibleItemCount;
+
+			mPreviousFirstVisibleItem = (mPreviousFirstVisibleItem == -1) ? mCurrentFirstVisibleItem : mPreviousFirstVisibleItem;
+			mPreviousVisibleItemCount = (mPreviousVisibleItemCount == -1) ? mCurrentVisibleItemCount : mPreviousVisibleItemCount;
+
+			checkAndHandleFirstVisibleCellChange();
+			checkAndHandleLastVisibleCellChange();
+
+			mPreviousFirstVisibleItem = mCurrentFirstVisibleItem;
+			mPreviousVisibleItemCount = mCurrentVisibleItemCount;
+		}
+
+		@Override
+		public void onScrollStateChanged(AbsListView view, int scrollState) {
+			mCurrentScrollState = scrollState;
+			mScrollState = scrollState;
+			isScrollCompleted();
+		}
+
+		private void checkAndHandleFirstVisibleCellChange() {
+			if (mCurrentFirstVisibleItem != mPreviousFirstVisibleItem) {
+				if (mCellIsMobile && mMobileItemId != INVALID_ID) {
+					updateNeighborViewsForId(mMobileItemId);
+					handleCellSwitch();
+				}
+			}
+		}
+
+		private void checkAndHandleLastVisibleCellChange() {
+			int currentLastVisibleItem = mCurrentFirstVisibleItem + mCurrentVisibleItemCount;
+			int previousLastVisibleItem = mPreviousFirstVisibleItem + mPreviousVisibleItemCount;
+			if (currentLastVisibleItem != previousLastVisibleItem) {
+				if (mCellIsMobile && mMobileItemId != INVALID_ID) {
+					updateNeighborViewsForId(mMobileItemId);
+					handleCellSwitch();
+				}
+			}
+		}
+
+		private void isScrollCompleted() {
+			if (mCurrentVisibleItemCount > 0 && mCurrentScrollState == SCROLL_STATE_IDLE) {
+				if (mCellIsMobile && mIsMobileScrolling) {
+					handleMobileCellScroll();
+				} else if (mIsWaitingForScrollFinish) {
+					touchEventsEnded();
+				}
+			}
+		}
+	};
 
 	public CustomGridView(Context context) {
 		super(context);
@@ -87,12 +140,18 @@ public class CustomGridView extends GridView {
 		init(context);
 	}
 
+	@Override
+	protected void dispatchDraw(Canvas canvas) {
+		super.dispatchDraw(canvas);
+		if (mHoverCell != null) {
+			mHoverCell.draw(canvas);
+		}
+	}
+
 	public void init(Context context) {
 		setOnScrollListener(mScrollListener);
 		DisplayMetrics metrics = context.getResources().getDisplayMetrics();
 		mSmoothScrollAmountAtEdge = (int) (SMOOTH_SCROLL_AMOUNT_AT_EDGE * metrics.density + 0.5f);
-
-//		mOverlapIfSwitchStraightLine = getResources().getDimensionPixelSize(R.dimen.kiwiple_story_scenario_overlap_if_switch_straight_line);
 	}
 
 	/**
@@ -104,7 +163,7 @@ public class CustomGridView extends GridView {
 		}
 		requestDisallowInterceptTouchEvent(true);
 
-		if (position != -1 && mDragListener != null) {
+		if (position != -1) {
 			startDragAtPosition(position);
 		}
 		mIsEditMode = true;
@@ -113,9 +172,6 @@ public class CustomGridView extends GridView {
 	public void stopEditMode() {
 		mIsEditMode = false;
 		requestDisallowInterceptTouchEvent(false);
-
-		if (mEditModeChangeListener != null)
-			mEditModeChangeListener.onEditModeChanged(false);
 	}
 
 	/**
@@ -124,21 +180,16 @@ public class CustomGridView extends GridView {
 	 * single time an invalidate call is made.
 	 */
 	private BitmapDrawable getAndAddHoverView(View v) {
-
 		int w = v.getWidth();
 		int h = v.getHeight();
 		int top = v.getTop();
 		int left = v.getLeft();
 
 		Bitmap b = getBitmapFromView(v);
-
 		BitmapDrawable drawable = new BitmapDrawable(getResources(), b);
-
 		mHoverCellOriginalBounds = new Rect(left, top, left + w, top + h);
 		mHoverCellCurrentBounds = new Rect(mHoverCellOriginalBounds);
-
 		drawable.setBounds(mHoverCellCurrentBounds);
-
 		return drawable;
 	}
 
@@ -162,14 +213,14 @@ public class CustomGridView extends GridView {
 	}
 
 	private void updateNeighborViewsForId(long itemId) {
-		idList.clear();
+		mIdList.clear();
 		int draggedPos = getPositionForID(itemId);
 //		Log.d("itemId " + itemId + ", draggedPos : " + draggedPos + ", first?VisiblePosition : " + getFirstVisiblePosition()
 //				+ ", lastVisiblePosition : " + getLastVisiblePosition());
 //		Log.d("All items count : " + getScenarioEditAdapter().getCount() + ", childCount : " + getChildCount() + ", draggedPos :" + draggedPos);
 		for (int pos = getFirstVisiblePosition(); pos <= getLastVisiblePosition(); pos++) {
 			if (draggedPos != pos) {
-				idList.add(getId(pos));
+				mIdList.add(getId(pos));
 			}
 		}
 
@@ -209,23 +260,8 @@ public class CustomGridView extends GridView {
 		this.mDropListener = dropListener;
 	}
 
-	public void setOnDragListener(OnDragListener dragListener) {
-		this.mDragListener = dragListener;
-	}
-
 	public interface OnDropListener {
 		void onActionDrop();
-	}
-
-	public interface OnDragListener {
-
-		void onDragStarted(int position);
-
-		void onDragPositionsChanged(int oldPosition, int newPosition);
-	}
-
-	public interface OnEditModeChangeListener {
-		void onEditModeChanged(boolean inEditMode);
 	}
 
 	@Override
@@ -245,10 +281,9 @@ public class CustomGridView extends GridView {
 			} else if (!isEnabled()) {
 				return false;
 			}
-
 			break;
-		case MotionEvent.ACTION_MOVE:
 
+		case MotionEvent.ACTION_MOVE:
 			moveX = (int) event.getX();
 			moveY = (int) event.getY();
 			moveId = pointToPosition(moveX, moveY) - getFirstVisiblePosition();
@@ -276,20 +311,22 @@ public class CustomGridView extends GridView {
 				handleMobileCellScroll();
 				return false;
 			}
-
 			break;
+
 		case MotionEvent.ACTION_UP:
 			touchEventsEnded();
 			if (mDropListener != null) {
 				mDropListener.onActionDrop();
 			}
 			break;
+
 		case MotionEvent.ACTION_CANCEL:
 			touchEventsCancelled();
 			if (mDropListener != null) {
 				mDropListener.onActionDrop();
 			}
 			break;
+
 		case MotionEvent.ACTION_POINTER_UP:
 			pointerIndex = (event.getAction() & MotionEvent.ACTION_POINTER_INDEX_MASK) >> MotionEvent.ACTION_POINTER_INDEX_SHIFT;
 			final int pointerId = event.getPointerId(pointerIndex);
@@ -297,6 +334,7 @@ public class CustomGridView extends GridView {
 				touchEventsEnded();
 			}
 			break;
+
 		default:
 			break;
 		}
@@ -340,11 +378,10 @@ public class CustomGridView extends GridView {
 		mCellIsMobile = false;
 		mIsMobileScrolling = false;
 		mActivePointerId = INVALID_ID;
-
 	}
 
 	private void reset(View mobileView) {
-		idList.clear();
+		mIdList.clear();
 		mMobileItemId = INVALID_ID;
 		mobileView.setVisibility(View.VISIBLE);
 		mHoverCell = null;
@@ -406,8 +443,7 @@ public class CustomGridView extends GridView {
 	}
 
 	private boolean left(Point targetColumnRowPair, Point mobileColumnRowPair) {
-		boolean val = targetColumnRowPair.y == mobileColumnRowPair.y && targetColumnRowPair.x < mobileColumnRowPair.x;
-		return val;
+		return targetColumnRowPair.y == mobileColumnRowPair.y && targetColumnRowPair.x < mobileColumnRowPair.x;
 	}
 
 	private Point getColumnAndRowForView(View view) {
@@ -419,15 +455,11 @@ public class CustomGridView extends GridView {
 	}
 
 	private void reorderElements(int originalPosition, int targetPosition) {
-		if (mDragListener != null) {
-			mDragListener.onDragPositionsChanged(originalPosition, targetPosition);
-		}
-
-//		getScenarioEditAdapter().reorderItems(originalPosition, targetPosition);
+		getCustomGridViewDragAndDropAdapter().reorderItems(originalPosition, targetPosition);
 	}
 
-	public CustomGridViewAdapter getScenarioEditAdapter() {
-		CustomGridViewAdapter adapter = (CustomGridViewAdapter) getAdapter();
+	public CustomGridViewDragAndDropAdapter getCustomGridViewDragAndDropAdapter() {
+		CustomGridViewDragAndDropAdapter adapter = (CustomGridViewDragAndDropAdapter) getAdapter();
 		if (adapter != null) {
 			return adapter;
 		}
@@ -451,7 +483,7 @@ public class CustomGridView extends GridView {
 //		L.d("mobile column : " + mobileColumnRowPair.x + ", row : " + mobileColumnRowPair.y);
 //		L.d("mobile view (" + mobileView.getLeft() + ", " + mobileView.getTop() + ", " + mobileView.getRight() + ", " + mobileView.getBottom() + ")");
 
-		for (Long id : idList) {
+		for (Long id : mIdList) {
 			View view = getViewForId(id);
 			if (view != null) {
 				Point targetColumnRowPair = getColumnAndRowForView(view);
@@ -459,18 +491,18 @@ public class CustomGridView extends GridView {
 						|| aboveLeft(targetColumnRowPair, mobileColumnRowPair) && deltaYTotal < view.getBottom() && deltaXTotal < view.getRight()
 						|| belowRight(targetColumnRowPair, mobileColumnRowPair) && deltaYTotal > view.getTop() && deltaXTotal > view.getLeft()
 						|| belowLeft(targetColumnRowPair, mobileColumnRowPair) && deltaYTotal > view.getTop() && deltaXTotal < view.getRight()
-						|| above(targetColumnRowPair, mobileColumnRowPair) && deltaYTotal < view.getBottom() - mOverlapIfSwitchStraightLine
-						|| below(targetColumnRowPair, mobileColumnRowPair) && deltaYTotal > view.getTop() + mOverlapIfSwitchStraightLine
-						|| right(targetColumnRowPair, mobileColumnRowPair) && deltaXTotal > view.getLeft() + mOverlapIfSwitchStraightLine || left(
-						targetColumnRowPair, mobileColumnRowPair) && deltaXTotal < view.getRight() - mOverlapIfSwitchStraightLine)) {
+						|| above(targetColumnRowPair, mobileColumnRowPair) && deltaYTotal < view.getBottom()
+						|| below(targetColumnRowPair, mobileColumnRowPair) && deltaYTotal > view.getTop()
+						|| right(targetColumnRowPair, mobileColumnRowPair) && deltaXTotal > view.getLeft()
+						|| left(targetColumnRowPair, mobileColumnRowPair) && deltaXTotal < view.getRight())) {
 
-//					float xDiff = Math.abs(getViewX(view) - getViewX(mobileView));
-//					float yDiff = Math.abs(getViewY(view) - getViewY(mobileView));
-//					if (xDiff >= vX && yDiff >= vY) {
-//						vX = xDiff;
-//						vY = yDiff;
-//						targetView = view;
-//					}
+					float xDiff = Math.abs(getViewX(view) - getViewX(mobileView));
+					float yDiff = Math.abs(getViewY(view) - getViewY(mobileView));
+					if (xDiff >= vX && yDiff >= vY) {
+						vX = xDiff;
+						vY = yDiff;
+						targetView = view;
+					}
 				}
 			}
 		}
@@ -495,6 +527,7 @@ public class CustomGridView extends GridView {
 			final int finalTargetPosition = targetPosition;
 			if (observer != null) {
 				observer.addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+
 					@Override
 					public boolean onPreDraw() {
 						observer.removeOnPreDrawListener(this);
@@ -511,14 +544,13 @@ public class CustomGridView extends GridView {
 		}
 	}
 
-//	public float getViewX(View view) {
-//		return Math.abs((view.getRight() - view.getLeft()) / 2);
-//	}
-//
-//	public float getViewY(View view) {
-//		return Math.abs((view.getBottom() - view.getTop()) / 2);
-//	}
+	public float getViewX(View view) {
+		return Math.abs((view.getRight() - view.getLeft()) / 2);
+	}
 
+	public float getViewY(View view) {
+		return Math.abs((view.getBottom() - view.getTop()) / 2);
+	}
 
 	private void animateReorder(final int oldPosition, final int newPosition) {
 		boolean isForward = newPosition > oldPosition;
@@ -548,6 +580,7 @@ public class CustomGridView extends GridView {
 		resultSet.setDuration(MOVE_DURATION);
 		resultSet.setInterpolator(new AccelerateDecelerateInterpolator());
 		resultSet.addListener(new AnimatorListenerAdapter() {
+
 			@Override
 			public void onAnimationStart(Animator animation) {
 				mReorderAnimation = true;
@@ -572,7 +605,7 @@ public class CustomGridView extends GridView {
 	}
 
 	private void updateEnableState() {
-		setEnabled(!mHoverAnimation && !mReorderAnimation);
+		setEnabled(!mReorderAnimation);
 	}
 
 	private void startDragAtPosition(int position) {
@@ -586,105 +619,6 @@ public class CustomGridView extends GridView {
 			selectedView.setVisibility(View.INVISIBLE);
 			mCellIsMobile = true;
 			updateNeighborViewsForId(mMobileItemId);
-			if (mDragListener != null) {
-				mDragListener.onDragStarted(position);
-			}
 		}
 	}
-
-	@Override
-	protected void dispatchDraw(Canvas canvas) {
-		super.dispatchDraw(canvas);
-		if (mHoverCell != null) {
-			mHoverCell.draw(canvas);
-		}
-	}
-
-	/**
-	 * This scroll listener is added to the gridview in order to handle cell
-	 * swapping when the cell is either at the top or bottom edge of the
-	 * gridview. If the hover cell is at either edge of the gridview, the
-	 * gridview will begin scrolling. As scrolling takes place, the gridview
-	 * continuously checks if new cells became visible and determines whether
-	 * they are potential candidates for a cell swap.
-	 */
-	private OnScrollListener mScrollListener = new OnScrollListener() {
-
-		private int mPreviousFirstVisibleItem = -1;
-		private int mPreviousVisibleItemCount = -1;
-		private int mCurrentFirstVisibleItem;
-		private int mCurrentVisibleItemCount;
-		private int mCurrentScrollState;
-
-		public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
-			mCurrentFirstVisibleItem = firstVisibleItem;
-			mCurrentVisibleItemCount = visibleItemCount;
-
-			mPreviousFirstVisibleItem = (mPreviousFirstVisibleItem == -1) ? mCurrentFirstVisibleItem : mPreviousFirstVisibleItem;
-			mPreviousVisibleItemCount = (mPreviousVisibleItemCount == -1) ? mCurrentVisibleItemCount : mPreviousVisibleItemCount;
-
-			checkAndHandleFirstVisibleCellChange();
-			checkAndHandleLastVisibleCellChange();
-
-			mPreviousFirstVisibleItem = mCurrentFirstVisibleItem;
-			mPreviousVisibleItemCount = mCurrentVisibleItemCount;
-
-		}
-
-		@Override
-		public void onScrollStateChanged(AbsListView view, int scrollState) {
-			mCurrentScrollState = scrollState;
-			mScrollState = scrollState;
-			isScrollCompleted();
-		}
-
-		/**
-		 * This method is in charge of invoking 1 of 2 actions. Firstly, if the
-		 * gridview is in a state of scrolling invoked by the hover cell being
-		 * outside the bounds of the gridview, then this scrolling event is
-		 * continued. Secondly, if the hover cell has already been released,
-		 * this invokes the animation for the hover cell to return to its
-		 * correct position after the gridview has entered an idle scroll state.
-		 */
-		private void isScrollCompleted() {
-			if (mCurrentVisibleItemCount > 0 && mCurrentScrollState == SCROLL_STATE_IDLE) {
-				if (mCellIsMobile && mIsMobileScrolling) {
-					handleMobileCellScroll();
-				} else if (mIsWaitingForScrollFinish) {
-					touchEventsEnded();
-				}
-			}
-		}
-
-		/**
-		 * Determines if the gridview scrolled up enough to reveal a new cell at
-		 * the top of the list. If so, then the appropriate parameters are
-		 * updated.
-		 */
-		public void checkAndHandleFirstVisibleCellChange() {
-			if (mCurrentFirstVisibleItem != mPreviousFirstVisibleItem) {
-				if (mCellIsMobile && mMobileItemId != INVALID_ID) {
-					updateNeighborViewsForId(mMobileItemId);
-					handleCellSwitch();
-				}
-			}
-		}
-
-		/**
-		 * Determines if the gridview scrolled down enough to reveal a new cell
-		 * at the bottom of the list. If so, then the appropriate parameters are
-		 * updated.
-		 */
-		public void checkAndHandleLastVisibleCellChange() {
-			int currentLastVisibleItem = mCurrentFirstVisibleItem + mCurrentVisibleItemCount;
-			int previousLastVisibleItem = mPreviousFirstVisibleItem + mPreviousVisibleItemCount;
-			if (currentLastVisibleItem != previousLastVisibleItem) {
-				if (mCellIsMobile && mMobileItemId != INVALID_ID) {
-					updateNeighborViewsForId(mMobileItemId);
-					handleCellSwitch();
-				}
-			}
-		}
-	};
-
 }

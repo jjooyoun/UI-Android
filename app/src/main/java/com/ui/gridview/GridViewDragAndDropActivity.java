@@ -49,16 +49,6 @@ public class GridViewDragAndDropActivity extends Activity implements OnItemLongC
 				mCustomGridView.stopEditMode();
 			}
 		});
-		mCustomGridView.setOnDragListener(new CustomGridView.OnDragListener() {
-
-			@Override
-			public void onDragStarted(int position) {
-			}
-
-			@Override
-			public void onDragPositionsChanged(int oldPosition, int newPosition) {
-			}
-		});
 	}
 
 	private ArrayList<PhotoData> makePhotoList() {
@@ -81,6 +71,7 @@ public class GridViewDragAndDropActivity extends Activity implements OnItemLongC
 		cursor.moveToNext();
 		for (int i = 0; i < count; i++) {
 			PhotoData photoData = new PhotoData();
+			photoData.setId(i);
 			photoData.setUri(ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cursor.getInt(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))));
 			mPhotoList.add(photoData);
 			cursor.moveToNext();

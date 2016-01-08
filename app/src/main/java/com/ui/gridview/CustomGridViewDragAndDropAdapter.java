@@ -16,18 +16,33 @@ import com.ui.R;
 import com.ui.util.ImageLoader;
 
 import java.util.ArrayList;
+import java.util.Collections;
 
-public class CustomGridViewDragAndDropAdapter extends ArrayAdapter<PhotoData> {
+public class CustomGridViewDragAndDropAdapter extends BaseAdapter {
 
 	private LayoutInflater mLayoutInflater;
 	private ImageLoader mImageLoader;
 	private ArrayList<PhotoData> mItemList;
 
 	public CustomGridViewDragAndDropAdapter(Context context, int textViewResourceId, ArrayList<PhotoData> itemlist) {
-		super(context, textViewResourceId, itemlist);
 		mLayoutInflater = LayoutInflater.from(context);
 		mImageLoader = new ImageLoader(context.getApplicationContext());
 		mItemList = itemlist;
+	}
+
+	@Override
+	public int getCount() {
+		return mItemList.size();
+	}
+
+	@Override
+	public Object getItem(int position) {
+		return mItemList.get(position);
+	}
+
+	@Override
+	public long getItemId(int position) {
+		return mItemList.get(position).getId();
 	}
 
 	@Override
@@ -45,6 +60,13 @@ public class CustomGridViewDragAndDropAdapter extends ArrayAdapter<PhotoData> {
 		PhotoData photoData = mItemList.get(position);
 		mImageLoader.displayImage(photoData.getUri().toString(), holder.mThumbnailView);
 		return convertView;
+	}
+
+	public void reorderItems(int originalPosition, int newPosition) {
+		if (newPosition < getCount()) {
+			Collections.swap(mItemList, originalPosition, newPosition);
+			notifyDataSetChanged();
+		}
 	}
 
 	private class ViewHolder {
