@@ -14,6 +14,7 @@ import android.widget.ListView;
 
 import com.ui.gridview.GridViewActivity;
 import com.ui.gridview.GridViewDragAndDropActivity;
+import com.ui.listview.ListViewActivity;
 
 import java.util.ArrayList;
 
@@ -27,6 +28,8 @@ public class MainActivity extends AppCompatActivity implements OnItemClickListen
         ArrayList<String> arrayList = new ArrayList<String>();
         arrayList.add("GridView");
         arrayList.add("GridView Drag & Drop");
+        arrayList.add("ListView");
+//        arrayList.add("ListView Loading");
 
         ArrayAdapter<String> Adapter;
         Adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, arrayList);
@@ -42,6 +45,8 @@ public class MainActivity extends AppCompatActivity implements OnItemClickListen
             startGridViewActivity();
         } else if (position == 1) {
             startGridViewDragAndDropActivity();
+        } else if (position == 2) {
+            startListViewActivity();
         }
     }
 
@@ -52,6 +57,11 @@ public class MainActivity extends AppCompatActivity implements OnItemClickListen
 
     private void startGridViewDragAndDropActivity() {
         Intent intent = new Intent(this, GridViewDragAndDropActivity.class);
+        startActivity(intent);
+    }
+
+    private void startListViewActivity() {
+        Intent intent = new Intent(this, ListViewActivity.class);
         startActivity(intent);
     }
 }
